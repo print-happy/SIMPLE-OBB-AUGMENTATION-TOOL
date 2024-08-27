@@ -4,42 +4,47 @@ import random
 import numpy as np
 from copy import deepcopy
 from tqdm import tqdm
+from multiprocessing import Pool, Manager, Value, Lock
 
-image_dir=''
-origin_label=''   
-output_label=''    
-save_path=''
+image_dir = ''
+origin_label = ''
+output_label = ''
+save_path = ''
 
-image_range=
-image_index=
-possibility=   
+image_range = 
+static_image_index=
+possibility = 
 
-def posssiblity_decorater(func):
-    def random_possibility(*args,**kwargs):
-        rand=random.random()
-        if rand<possibility:
-            func(*args,**kwargs)
-        else:
-            pass
+def posssibility_decorater(func):
+    def random_possibility(*args, **kwargs):
+        rand = random.random()
+        if rand < possibility:
+            func(*args, **kwargs)
     return random_possibility
 
 def normalizer(image,i):
     labels=deepcopy(image_dict.get(str(i)+'.jpg'))
     (w,h)=image.shape[:2]
-    for label in labels:            
-        for i in range(0,8,2):
-            label[i]=label[i]/w
-            label[i+1]=label[i+1]/h
-    return labels
+    try:
+        for label in labels:            
+            for i in range(0,8,2):
+                label[i]=label[i]/w
+                label[i+1]=label[i+1]/h
+        return labels
+    except:
+        return []
 
 def normalize_clip(image,i):
     image,labels,_=clip(image,i)
     (w,h)=image.shape[:2]
-    for label in labels:            
-        for i in range(0,8,2):
-            label[i]=label[i]/w
-            label[i+1]=label[i+1]/h
-    return image,labels
+    try:
+        for label in labels:            
+            for i in range(0,8,2):
+                label[i]=label[i]/w
+                label[i+1]=label[i+1]/h
+        return image,labels
+    except:
+        return image,None
 
 def normalize_decorater(func):
     def nomalize(*args,**kwargs):
@@ -188,19 +193,20 @@ def denoise(image,kernel_size):
     denoised_image=cv2.medianBlur(image,kernel_size)
     return denoised_image
 
-@posssiblity_decorater
+@posssibility_decorater
 def clip_api(image,i,image_index):
     clipped_image,clipped_labels=normalize_clip(image,i)
     image_save_path=os.path.join(save_path, f"{image_index}.jpg")
     cv2.imwrite(image_save_path,clipped_image)
     new_label=[str(image_index)+'.jpg']
     with open(output_label,'a') as file:
-        for label in clipped_labels:
-            label.insert(0,str(image_index)+'.jpg')  
-            label_str=' '.join(map(str, label))
-            file.write(label_str + '\n')                
+        if clipped_labels is not None:
+            for label in clipped_labels:
+                label.insert(0,str(image_index)+'.jpg')  
+                label_str=' '.join(map(str, label))
+                file.write(label_str + '\n')                
 
-@posssiblity_decorater
+@posssibility_decorater
 def mixup_api(image,i,image_index):
     j=random.randint(1,image_range)
     image_path=os.path.join(image_dir,str(j)+'.jpg')
@@ -213,23 +219,25 @@ def mixup_api(image,i,image_index):
     cv2.imwrite(image_save_path,mixup_image)
     new_label=[str(image_index)+'.jpg']
     with open(output_label,'a') as file:
-        for label in mixup_labels:
-            label.insert(0,str(image_index)+'.jpg')  
-            label_str=' '.join(map(str, label))
-            file.write(label_str + '\n')                
+        if mixup_labels is not None:
+            for label in mixup_labels:
+                label.insert(0,str(image_index)+'.jpg')  
+                label_str=' '.join(map(str, label))
+                file.write(label_str + '\n')                
 
-@posssiblity_decorater
+@posssibility_decorater
 def rotate_api(image,i,image_index):
     rotated_image,rotated_labels=rotate(image,i)
     image_save_path=os.path.join(save_path, f"{image_index}.jpg")
     cv2.imwrite(image_save_path,rotated_image)
     with open(output_label,'a') as file:
-        for label in rotated_labels:
-            label.insert(0,str(image_index)+'.jpg')  
-            label_str=' '.join(map(str, label))
-            file.write(label_str + '\n') 
+        if rotated_labels is not None:
+            for label in rotated_labels:
+                label.insert(0,str(image_index)+'.jpg')  
+                label_str=' '.join(map(str, label))
+                file.write(label_str + '\n') 
 
-@posssiblity_decorater
+@posssibility_decorater
 def gauss_blur_api(image,i,image_index):
     blurred_image=gauss_blur(image,35)
     image_save_path=os.path.join(save_path, f"{image_index}.jpg")
@@ -237,12 +245,13 @@ def gauss_blur_api(image,i,image_index):
     new_label=[str(image_index)+'.jpg']
     labels=normalizer(image,i)
     with open(output_label,'a') as file:
-        for label in labels: 
-            label.insert(0,str(image_index)+'.jpg')
-            label_str=' '.join(map(str, label))
-            file.write(label_str + '\n')         
+        if labels is not None:
+            for label in labels: 
+                label.insert(0,str(image_index)+'.jpg')
+                label_str=' '.join(map(str, label))
+                file.write(label_str + '\n')         
 
-@posssiblity_decorater
+@posssibility_decorater
 def gauss_noise_api(image,i,image_index):
     noisy_image=gauss_noise(image,100)
     image_save_path=os.path.join(save_path, f"{image_index}.jpg")
@@ -250,12 +259,13 @@ def gauss_noise_api(image,i,image_index):
     new_label=[str(image_index)+'.jpg']
     labels=normalizer(image,i)
     with open(output_label,'a') as file:
-        for label in labels:
-            label.insert(0,str(image_index)+'.jpg')
-            label_str=' '.join(map(str, label))
-            file.write(label_str + '\n') 
+        if labels is not None:
+            for label in labels:
+                label.insert(0,str(image_index)+'.jpg')
+                label_str=' '.join(map(str, label))
+                file.write(label_str + '\n') 
 
-@posssiblity_decorater
+@posssibility_decorater
 def denoise_api(image,i,image_index):
     denoised_image=denoise(image,5)
     image_save_path=os.path.join(save_path, f"{image_index}.jpg")
@@ -263,43 +273,110 @@ def denoise_api(image,i,image_index):
     new_label=[str(image_index)+'.jpg']
     labels=normalizer(image,i)
     with open(output_label,'a') as file:
-        for label in labels: 
-            label.insert(0,str(image_index)+'.jpg')
-            label_str=' '.join(map(str, label))
-            file.write(label_str + '\n')   
+        if labels is not None:
+            for label in labels: 
+                label.insert(0,str(image_index)+'.jpg')
+                label_str=' '.join(map(str, label))
+                file.write(label_str + '\n')   
 
-image_dict={}
-with open(origin_label,'r') as file:
-    for line in file:
-        line=list(line.strip().split())
-        image_name=line[0]
-        image_list=[float(x) for x in line[1:]]
-        if not image_name in image_dict:
-            image_dict[image_name]=[image_list]
-        else:
-            image_dict[image_name].append(image_list)
+def init_globals(shared_dict, empty_list, image_idx, idx_lock, progress_val):
+    global image_dict
+    global empty_images
+    global image_index
+    global lock
+    global progress
+    
+    image_dict = shared_dict
+    empty_images = empty_list
+    image_index = image_idx
+    lock = idx_lock
+    progress = progress_val
 
-empty_images=[]
-for i in tqdm(range(1,image_range),desc='Processing',ascii=False,ncols=100):
-    image_path=os.path.join(image_dir,str(i)+'.jpg')
+def process_image(i):
+    global image_dict
+    global image_index
+    global lock
+    global progress
+
+    image_path = os.path.join(image_dir, str(i) + '.jpg')
     try:
-        img=cv2.imread(image_path)
-        image=deepcopy(img)
+        img = cv2.imread(image_path)
+        image = deepcopy(img)
         if img is None:
-            raise ValueError(str(i)+'.jpg')
+            raise ValueError(str(i) + '.jpg')
     except Exception as e:
         empty_images.append(e)
-        continue
+        return
+
+    with lock:
+        idx = image_index.value
+        image_index.value += 1
+    clip_api(image, i, idx)
+
+    with lock:
+        idx = image_index.value
+        image_index.value += 1
+    mixup_api(image, i, idx)
+
+    with lock:
+        idx = image_index.value
+        image_index.value += 1
+    rotate_api(image, i, idx)
+
+    with lock:
+        idx = image_index.value
+        image_index.value += 1
+    gauss_blur_api(image, i, idx)
+
+    with lock:
+        idx = image_index.value
+        image_index.value += 1
+    gauss_noise_api(image, i, idx)
+
+    with lock:
+        idx = image_index.value
+        image_index.value += 1
+    denoise_api(image, i, idx)
+
+    with lock:
+        progress.value += 1
+
+def main():
+    global image_dict
+    global empty_images
     
-    clip_api(image,i,image_index)
-    image_index+=1
-    mixup_api(image,i,image_index)
-    image_index+=1
-    rotate_api(image,i,image_index)
-    image_index+=1
-    gauss_blur_api(image,i,image_index)
-    image_index+=1
-    gauss_noise_api(image,i,image_index)
-    image_index+=1
-    denoise_api(image,i,image_index)
-    image_index+=1
+    with open(origin_label, 'r') as file:
+        for line in file:
+            line = list(line.strip().split())
+            image_name = line[0]
+            image_list = [float(x) for x in line[1:]]
+            if not image_name in image_dict:
+                image_dict[image_name] = [image_list]
+            else:
+                image_dict[image_name].append(image_list)
+
+    with Manager() as manager:
+        shared_dict = manager.dict(image_dict)
+        empty_list = manager.list()
+        image_index = Value('i', static_image_index)
+        progress = Value('i', 0)
+        lock = Lock()
+
+        init_globals(shared_dict, empty_list, image_index, lock, progress)
+        
+        num_processes = 4  
+        pool = Pool(processes=num_processes, initializer=init_globals, initargs=(shared_dict, empty_list, image_index, lock, progress))
+        
+        with tqdm(total=image_range - 1, desc="Processing Images", ncols=100) as pbar:
+            for _ in pool.imap_unordered(process_image, range(1, image_range)):
+                try:
+                    with lock:
+                        pbar.update(progress.value - pbar.n)
+                except:
+                    pass
+        
+        pool.close()
+        pool.join()
+
+if __name__ == '__main__':
+        main()
